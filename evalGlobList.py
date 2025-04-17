@@ -210,8 +210,9 @@ class EvalGlobList:
 		if outputPath is None:
 			if lastListFile:
 				listName		= os.path.basename( lastListFile )
+				lastListDir		= os.path.normpath( os.path.join( lastListFile, ".." ) )
 				baseName, ext	= os.path.splitext( listName )
-				outputPath		= fmtOutputPath.format( listName, baseName, ext )
+				outputPath		= os.path.normpath( fmtOutputPath.format( listName, baseName, ext, lastListDir ) )
 			else:
 				raise Exception( "Invalid last list file determined!" )
 
@@ -221,7 +222,7 @@ class EvalGlobList:
 		self.__writeList( outputPath, fmt, lines )
 
 ###########################################################################################################################
-examples = """Here are some examples, how to use this script:
+examples = r"""Here are some examples, how to use this script:
 
 Function: Read list containing fnmatch regular expression (fnmatch) and write to specified output path.
 evalGlobList.py -g=e:\gfx\_lists\_definitions_\Konzerte.txt -r=e:\gfx\_lists\movies\.m3u8 -o=movies_Konzerte.m3u8
@@ -251,7 +252,7 @@ gEval.add_argument( "-s", "--snippet", help = "Python snippet processed for any 
 
 gOutput = parser.add_argument_group( "Output options" )
 gOutput.add_argument( "-o", "--output", help = "Path to output path. Default: Disabled", default = None )
-gOutput.add_argument( "-f", "--fmtOutput", help = "Format template of the output paths ({0}: base name of the regExList, {1}:file name without extension, {2}:extension). Default: Disabled", default = None )
+gOutput.add_argument( "-f", "--fmtOutput", help = "Format template of the output paths ({0}: base name of last glob list, {1}:file name without extension, {2}:extension, {3}:directory of last glob list). Default: Disabled", default = None )
 gOutput.add_argument( "--fmtTemplate", dest = "fmtTemplate", help = "Format template of main content read from specified file. ({0}: Formatted elements (see option --fmtEntry). Option cannot be specified together with --fmt! Default: \"{0}\"", default = None )
 gOutput.add_argument( "--fmt", help = "Format template of main content ({0}: Formatted elements (see option --fmtEntry). Default: \"{0}\"", default = None )
 gOutput.add_argument( "--fmtEntry", help = "Format template of a single entry ({0}: Path as read from source). Default: \"{0}\"", default = None )
