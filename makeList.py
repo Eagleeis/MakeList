@@ -93,7 +93,8 @@ class MakeList:
 			defOutputMode				= "unix"
 			defFmtAllSubEntries			= "{0}{3}"
 			defFmtLists					= "{0}{3}"
-			defFmtEntry					= "file:///{0}"
+			#defFmtEntry					= "file:///{0}"
+			defFmt						= "#EXTM3U\n{0}"
 		else:
 			raise Exception( "Unsupported output type \"{}\" specified!".format( outputType ) )
 

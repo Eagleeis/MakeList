@@ -60,7 +60,7 @@ class EvalGlobList:
 			# Return:	True	Line should be ignored since it is a comment
 			if line.startswith( "#" ):
 				if line.startswith( "#@sortMethod=" ):
-					method	= line[ 13 : ]
+					method	= line[ 13 : ].strip()
 					if method == "humanSortIgnoreKey":
 						options[ "sortMethod" ] = humanSortIgnoreKey
 					else:
