@@ -201,21 +201,24 @@ class MakeList:
 			except:
 				sys.stderr.write( "Cannot remove existing path \"{}\"! Ignored.\n".format( listPath ) )
 		try:
-			if not self.__dryMode and ( lines or self.__writeEmptyLists ):
-				if self.__verbose:
-					print( "Opening output file \"{}\" with encoding \"{}\".".format( listPath, self.__outputEncoding ) )
-				f = codecs.open( listPath, "w", self.__outputEncoding )
-				try:
-					f.write( self.__getOutput( lines ) )
-				except UnicodeEncodeError as e:
-					# Most probably an encoding problem. Write line-by-line to ignore problematic line
-					for numLine, line in enumerate( lines ):
-						try:
-							f.write( line + "\n" )
-						except:
-							sys.stderr.write( "Skipped file \"{}\" while writing with encoding \"{}\". Reason: {}\n".format( line.encode( self.__outputEncoding , "ignore" ), self.__outputEncoding, str( e ) ) )
+			if not self.__dryMode:
+				if lines or self.__writeEmptyLists:
+					if self.__verbose:
+						print( "Opening output file \"{}\" with encoding \"{}\".".format( listPath, self.__outputEncoding ) )
+					f = codecs.open( listPath, "w", self.__outputEncoding )
+					try:
+						f.write( self.__getOutput( lines ) )
+					except UnicodeEncodeError as e:
+						# Most probably an encoding problem. Write line-by-line to ignore problematic line
+						for numLine, line in enumerate( lines ):
+							try:
+								f.write( line + "\n" )
+							except:
+								sys.stderr.write( "Skipped file \"{}\" while writing with encoding \"{}\". Reason: {}\n".format( line.encode( self.__outputEncoding , "ignore" ), self.__outputEncoding, str( e ) ) )
+				elif self.__verbose:
+					sys.stderr.write( "Skipping writing empty file \"{}\".\n".format( listPath ) )
 			elif self.__verbose:
-				sys.stderr.write( "Skipping writing empty file \"{}\".\n".format( listPath ) )
+				sys.stderr.write( "Writing file \"{}\" skipped due to dry mode.\n".format( listPath ) )
 		except:
 			sys.stderr.write( traceback.format_exc() )
 			sys.stderr.write( "Cannot write list to file \"{}\"!\n".format( listPath ) )
@@ -363,12 +366,19 @@ m3uext   Create m3u lists in any specified directory and its sub directories
 music    Scan for music
 movies   Scan for movies
 pictures Scan for pictures
+fileList Make a list of all files
 
 Here are some examples, how to use this script (Note: Option -D activates dry mode!):
 
 ###########################################################################################################################
 Scan current folder and sub folders and write relative path of each file to STDOUT
 Usage: makeList.py
+
+###########################################################################################################################
+Create a list of all files in specified directory "%SCANFOLDER%" and its sub directories, but
+not the files within sub directory "foo\bar". All files shall be written with absolute path
+and encoded with "utf8".
+Usage: makeList.py --type=fileList -d="%SCANFOLDER%" -x="foo\bar" -v --absPath -E=utf8 -o="%TARGETLIST%"
 
 ###########################################################################################################################
 Scan current folder and sub folders for supported pictures and write relative
@@ -534,6 +544,11 @@ else:
 			if output == "-" or output == True:
 				print( "\n".join( results ) )
 			else:
-				fh = open( output, "w+" )
-				fh.write( "\n".join( results ) )
+				if not args.dryMode:
+					if verbose:
+						print( "Write final output file \"{}\".".format( output ) )
+					fh = codecs.open( output, "w+", args.encoding if args.encoding is not None else locale.getencoding() )
+					fh.write( "\n".join( results ) )
+				elif verbose:
+					sys.stderr.write( "Writing file \"{}\" skipped due to dry mode.\n".format( output ) )
 sys.exit( 0 )
