@@ -226,8 +226,10 @@ class MakeList:
 	#######################################################################################################################
 	def __warnExtension( self, d, f ):
 		toIgnore	= self.__lIgnore
-		if toIgnore is not None and f not in toIgnore and os.path.splitext( f )[ 1 ].lower() not in toIgnore:
+		if toIgnore is not None and ( f in toIgnore or os.path.splitext( f )[ 1 ].lower() in toIgnore ):
 			sys.stderr.write( "File \"{}\" has an unsupported file extension! Ignored.\n".format( os.path.join( os.getcwd(), d, f ) ) )
+			return False
+		return True
 
 	#######################################################################################################################
 	def __scanDir( self, prefix, d, scanSubDirectories, preventRedundantLists ):
@@ -243,7 +245,7 @@ class MakeList:
 			allItems	= [ _ for _ in sorted( os.listdir( dReal ), key = humanSortIgnoreKey ) ]
 			subDirs		= [ _ for _ in allItems if os.path.isdir( os.path.join( dReal, _ ) ) ]
 			files		= [ _ for _ in allItems if _ not in subDirs and ( _ in extensions or os.path.splitext(_)[ 1 ].lower() in extensions or self.__warnExtension( d, _ ) ) ]		\
-							if extensions != None else [ _ for _ in allItems if _ not in subDirs ]
+							if extensions != None else [ _ for _ in allItems if _ not in subDirs and self.__warnExtension( d, _ ) ]
 			numFiles	= len( files )
 
 			# Write list of folder contents without contents of sub folders
