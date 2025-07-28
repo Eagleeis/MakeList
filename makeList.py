@@ -156,6 +156,14 @@ class MakeList:
 				raise Exception( "Unsupported output mode option \"{}\" specified!".format( outputMode ) )
 
 	#######################################################################################################################
+	def getVerbose( self ):
+		return self.__verbose
+
+	#######################################################################################################################
+	def getVerboseVerbose( self ):
+		return self.__verboseVerbose
+
+	#######################################################################################################################
 	def __reformatNone( self, s ):
 		return s
 
@@ -305,14 +313,18 @@ class MakeList:
 		g	= {	"os"		: os,
 				"sys"		: sys,
 				"re"		: re,
-				"sys"		: sys,
 				"glob"		: glob,
+				"math"		: math,
+				"copy"		: copy,
 				"shutil"	: shutil,
 				"fnmatch"	: fnmatch,
 				"traceback"	: traceback,
 			  }
 		if initSnippets is not None:
-			l					= {}
+			l					= {	"makeList"			: self,
+									"verbose"			: self.__verbose,
+									"verboseVerbose"	: self.__verboseVerbose,
+								  }
 			exec( initSnippets, g, l )
 			g.update( l )
 		return g
@@ -438,6 +450,16 @@ makeList.py -a -o="" -t=movies -d="e:\gfx\Ausflüge" --filterSnippet="fnmatch.fn
 Remove all list files of types (.sld, .m3u, .m3u8) within folder %GFX% but not in sub folder "_Playlisten_".
 Consider activated dry mode!
 makeList.py -a -o="" -d=%GFX% -e=".sld,.lst,.m3u,.m3u8" -x=_Playlisten_ --vv -v --outputSnippet="sys.stdout.write('Skipping removal of \"{}\" due to activated dry mode.\n'.format(filePath)) if dryMode else (sys.stdout.write('Removing \"{}\".\n'.format(filePath)) and os.remove(filePath))" -D
+
+###########################################################################################################################
+Print table of movies with file size and used codec. This examples shows how to import an external class
+used for filtering and outputting.
+makeList.py -d=%GFX% -t=movies --initSnippets="import videoInfo;wi=videoInfo.VideoChecker(makeList,'{0:<90}\t{3:>15_}\t{4}')" --filterSnippet="wi.filter(curDir,filePath)" --os=outputEntry=wi.output(filePath) -o="-"
+
+###########################################################################################################################
+Same as before but size if printed in GB with 2 decimal places.
+makeList.py -d=%GFX% -t=movies --initSnippets="import videoInfo;wi=videoInfo.VideoChecker(makeList,'{0:<90}\t{3:>15_.2f}\t{4}',1/1024/1024))" --filterSnippet="wi.filter(curDir,filePath)" --os=outputEntry=wi.output(filePath) -o="-"
+
 """
 
 ###########################################################################################################################
@@ -453,20 +475,20 @@ gInput.add_argument( "-x", "--excludeDirectory", dest = "excludedDirectories", h
 gInput.add_argument( "-e", "--extensions", help = "List of supported extensions as comma-separated string which will be part of the output list. Set to \"\" to add all files. Default: Default extensions of output type", default = None )
 gInput.add_argument( "-i", "--ignore", help = "List of extensions to be ignored while scanning. All other extensions will raise a warning to STDOUT. Set to \"\" to skip this feature. Default: Default ignores of output type", default = None )
 gInput.add_argument( "-N", "--noSubDirs", action = "store_true", help = "Do not scan sub directories." )
-gInput.add_argument( "--is", "--initSnippets", dest = "initSnippets", help = "Python snippet to initialize the snippets and prepare globals for Python snippets. Default: None", default = None )
+gInput.add_argument( "--is", "--initSnippets", dest = "initSnippets", help = "Python snippet to initialize the snippets and prepare globals for Python snippets. The following globals are provided: os, sys, re, glob, copy, math, shutil, fnmatch, traceback. The following locals are provided: makeList, verbose and verboseVerbose. Default: None", default = None )
 
 gOutput = parser.add_argument_group( "Output options" )
 gOutput.add_argument( "-t", "--type", dest = "outputType", help = "Type of output lists. Valid options are: fileList, pictures, movies, m3u, m3uExt. Default: None", default = None )
 gOutput.add_argument( "-m", "--mode", dest = "outputMode", help = "Output Mode of directory separators. Options are: None: Native separator, UNIX: Output list with \"/\" separator, Windows: Output list with \"\\\" separator. Default: Default output mode of output type", default = None )
 gOutput.add_argument( "-l", "--listsFolder", help = "A folder any list shall also be written to. All path and drive separators shall be converted to \"_\". Default: Disabled", default = None )
-gOutput.add_argument( "-s", "--filterSnippet", help = "Python snippet (type eval) to be customized while scanning to check, if an entry should be included or not. The following globals are defined: os, re, sys, glob, math, shutil, fnmatch, traceback. The following locals are defined: filePath, curDir. Default: Disabled", default = None )
+gOutput.add_argument( "-s", "--filterSnippet", help = "Python snippet (type eval) to be customized while scanning to check, if an entry should be included or not. The following globals are defined: os, re, sys, glob, copy, math, shutil, fnmatch, traceback. The following locals are defined: filePath, curDir. Default: Disabled", default = None )
 gOutput.add_argument( "-p", "--prefix", help = "A prefix which shall be added to any element in the lists written to the lists folder (--listsFolder). This can be used to replace e.g. \"..\" to a place holder, e.g. $MYMUSIC. Default: Auto detected relative path from lists folder (--listsFolder) to folder to be scanned (see option --directory).", default = None )
 gOutput.add_argument( "-E", "--encoding", help = "The encoding to be used in output lists. Default: {}".format( locale.getencoding() ), default = None )
 gOutput.add_argument( "-W", "--writeEmptyLists", action = "store_true", help = "Do write empty lists. Default: Overwrite any list and write even empty content." )
 gOutput.add_argument( "-D", "--dryMode", action = "store_true", help = "Dry mode. No changes will be done to disc. Default: False.", default = False )
 gOutput.add_argument( "-o", "--output", help = "Output final list to specified file. Set to \"-\" to print to STDOUT. Set to \"\" to prevent printing to STDOUT. Default: STDOUT if outputType and --fmt* are not specified. Otherwise: None", default = None )
 gOutput.add_argument( "-a", "--absPath", dest = "absPath", action = "store_true", help = "Create absolute path of entries in final outputs. Option has no effect to fmt lists. Default: False.", default = False )
-gOutput.add_argument( "--os", "--outputSnippet", dest = "outputSnippet", help = "Python snippet (type: exec) executed for any final entry of output list in any case and independently on other options for any final line. The following globals are defined: os, re, sys, glob, math, shutil, fnmatch, traceback. The following locals are defined: filePath, curDir, dryMode. If locals[\"outputEntry\"] is defined after executing the snippet, it shall be written to the output instead \"filePath\". Default: Undefined.", default = None )
+gOutput.add_argument( "--os", "--outputSnippet", dest = "outputSnippet", help = "Python snippet (type: exec) executed for any final entry of output list in any case and independently on other options for any final line. The following globals are defined: os, re, sys, glob, copy, math, shutil, fnmatch, traceback. The following locals are defined: filePath, curDir, dryMode. If locals[\"outputEntry\"] is defined after executing the snippet, it shall be written to the output instead \"filePath\". Default: Undefined.", default = None )
 gOutput.add_argument( "--ip", "--ignorePythonErrors", dest = "ignorePythonErrors", action = "store_true", help = "Ignore exceptions in executed Python snippets. Default: False.", default = False )
 	
 gFmtList = parser.add_argument_group( "Output Lists",
@@ -485,8 +507,6 @@ gFmtList.add_argument( "--fmtLists", help = "Format string of file path of same 
 gOutput.add_argument( "--fmtTemplate", dest = "fmtTemplate", help = "Format template of main content read from specified file. ({0}: Formatted elements (see option --fmtEntry). Option cannot be specified together with --fmt! Default: \"{0}\"", default = None )
 gOutput.add_argument( "--fmt", help = "Format template of main content ({0}: Formatted elements (see option --fmtEntry). Default: \"{0}\"", default = None )
 gOutput.add_argument( "--fmtEntry", help = "Format template of a single entry ({0}: Path as read from source). Default: \"{0}\"", default = None )
-
-
 
 args	= parser.parse_args()
 if args.examples:
