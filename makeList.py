@@ -10,6 +10,7 @@ import argparse
 import codecs
 import locale
 import math
+import copy
 import shutil
 import glob
 import fnmatch
@@ -40,7 +41,7 @@ class MakeList:
 
 	#######################################################################################################################
 	def __init__( self, listsFolder, extensions, ignore, excludedDirectories, outputMode, fmtOnlyEntries, fmtAllSubEntries,
-				  fmtLists, fmt, fmtEntry, snippet, writeEmptyLists, outputType, dryMode, outputEncoding,
+				  fmtLists, fmt, fmtEntry, initSnippets, snippet, writeEmptyLists, outputType, dryMode, outputEncoding,
 				  verbose, verboseVerbose ):
 		if listsFolder is None and fmtLists:
 			raise Exception( "If option /fmtLists/ is specified, you need to specify a lists folder!" )
@@ -52,6 +53,7 @@ class MakeList:
 		self.__verboseVerbose		= verboseVerbose
 		self.__writeEmptyLists		= writeEmptyLists		# True: Do not write empty lists, just remove existing lists
 		self.__excludedDirectories	= excludedDirectories	# folders within /listsFolder/ to be excluded
+		self.__globals				= self.__initGlobals( initSnippets )		# Globals for snippets
 
 		defListExtension			= None					# Extension of generated lists
 		defExtensions				= None					# Allowed extensions in files or None for all
@@ -227,7 +229,7 @@ class MakeList:
 	def __warnExtension( self, d, f ):
 		toIgnore	= self.__lIgnore
 		if toIgnore is not None and ( f in toIgnore or os.path.splitext( f )[ 1 ].lower() in toIgnore ):
-			sys.stderr.write( "File \"{}\" has an unsupported file extension! Ignored.\n".format( os.path.join( os.getcwd(), d, f ) ) )
+			sys.stderr.write( "File \"{}\" has a file extension configured to be skipped! Ignored.\n".format( os.path.join( os.getcwd(), d, f ) ) )
 			return False
 		return True
 
@@ -244,7 +246,7 @@ class MakeList:
 				print( "Scanning folder \"{}\".".format( dReal ) )
 			allItems	= [ _ for _ in sorted( os.listdir( dReal ), key = humanSortIgnoreKey ) ]
 			subDirs		= [ _ for _ in allItems if os.path.isdir( os.path.join( dReal, _ ) ) ]
-			files		= [ _ for _ in allItems if _ not in subDirs and ( _ in extensions or os.path.splitext(_)[ 1 ].lower() in extensions or self.__warnExtension( d, _ ) ) ]		\
+			files		= [ _ for _ in allItems if _ not in subDirs and ( _ in extensions or os.path.splitext(_)[ 1 ].lower() in extensions and self.__warnExtension( d, _ ) ) ]		\
 							if extensions != None else [ _ for _ in allItems if _ not in subDirs and self.__warnExtension( d, _ ) ]
 			numFiles	= len( files )
 
@@ -299,17 +301,25 @@ class MakeList:
 		return []
 
 	#######################################################################################################################
-	@staticmethod
-	def getGlobals():
-		return  {	"os"		: os,
-					"sys"		: sys,
-					"re"		: re,
-					"sys"		: sys,
-					"glob"		: glob,
-					"shutil"	: shutil,
-					"fnmatch"	: fnmatch,
-					"traceback"	: traceback,
-				}
+	def __initGlobals( self, initSnippets ):
+		g	= {	"os"		: os,
+				"sys"		: sys,
+				"re"		: re,
+				"sys"		: sys,
+				"glob"		: glob,
+				"shutil"	: shutil,
+				"fnmatch"	: fnmatch,
+				"traceback"	: traceback,
+			  }
+		if initSnippets is not None:
+			l					= {}
+			exec( initSnippets, g, l )
+			g.update( l )
+		return g
+
+	#######################################################################################################################
+	def getGlobals( self ):
+		return self.__globals
 
 	#######################################################################################################################
 	def startScanning( self, prefix, directory, scanSubDirectories, preventRedundantLists, ignorePythonErrors ):
@@ -338,7 +348,7 @@ class MakeList:
 					snippet	= compile( self.__snippet, "filterSnippet", "eval" )
 					l		= {	"filePath"		: None,
 								"curDir"		: dReal		}
-					g		= self.getGlobals()
+					g		= self.__globals
 					def checkSnippet( f ):
 						l[ "filePath" ]	= f
 						try:
@@ -443,6 +453,7 @@ gInput.add_argument( "-x", "--excludeDirectory", dest = "excludedDirectories", h
 gInput.add_argument( "-e", "--extensions", help = "List of supported extensions as comma-separated string which will be part of the output list. Set to \"\" to add all files. Default: Default extensions of output type", default = None )
 gInput.add_argument( "-i", "--ignore", help = "List of extensions to be ignored while scanning. All other extensions will raise a warning to STDOUT. Set to \"\" to skip this feature. Default: Default ignores of output type", default = None )
 gInput.add_argument( "-N", "--noSubDirs", action = "store_true", help = "Do not scan sub directories." )
+gInput.add_argument( "--is", "--initSnippets", dest = "initSnippets", help = "Python snippet to initialize the snippets and prepare globals for Python snippets. Default: None", default = None )
 
 gOutput = parser.add_argument_group( "Output options" )
 gOutput.add_argument( "-t", "--type", dest = "outputType", help = "Type of output lists. Valid options are: fileList, pictures, movies, m3u, m3uExt. Default: None", default = None )
@@ -455,7 +466,7 @@ gOutput.add_argument( "-W", "--writeEmptyLists", action = "store_true", help = "
 gOutput.add_argument( "-D", "--dryMode", action = "store_true", help = "Dry mode. No changes will be done to disc. Default: False.", default = False )
 gOutput.add_argument( "-o", "--output", help = "Output final list to specified file. Set to \"-\" to print to STDOUT. Set to \"\" to prevent printing to STDOUT. Default: STDOUT if outputType and --fmt* are not specified. Otherwise: None", default = None )
 gOutput.add_argument( "-a", "--absPath", dest = "absPath", action = "store_true", help = "Create absolute path of entries in final outputs. Option has no effect to fmt lists. Default: False.", default = False )
-gOutput.add_argument( "--os", "--outputSnippet", dest = "outputSnippet", help = "Python snippet (type: exec) executed for any final entry of output list in any case and independently on other options for any final line. The following globals are defined: os, re, sys, glob, math, shutil, fnmatch, traceback. The following locals are defined: filePath, curDir, dryMode. Default: Undefined.", default = None )
+gOutput.add_argument( "--os", "--outputSnippet", dest = "outputSnippet", help = "Python snippet (type: exec) executed for any final entry of output list in any case and independently on other options for any final line. The following globals are defined: os, re, sys, glob, math, shutil, fnmatch, traceback. The following locals are defined: filePath, curDir, dryMode. If locals[\"outputEntry\"] is defined after executing the snippet, it shall be written to the output instead \"filePath\". Default: Undefined.", default = None )
 gOutput.add_argument( "--ip", "--ignorePythonErrors", dest = "ignorePythonErrors", action = "store_true", help = "Ignore exceptions in executed Python snippets. Default: False.", default = False )
 	
 gFmtList = parser.add_argument_group( "Output Lists",
@@ -490,12 +501,11 @@ else:
 		if fmt:
 			raise Exception( "Specifiy either --fmtTemplate or --fmt!" )
 		fmt			= open( fmtTemplate ).read()
-
 	makeList	= MakeList( args.listsFolder, args.extensions if args.extensions is not None else None,
 							args.ignore if args.ignore is not None else None, args.excludedDirectories,
 							args.outputMode, args.fmtOnlyEntries, args.fmtAllSubEntries, args.fmtLists,
-							fmt, fmtEntry, args.filterSnippet, args.writeEmptyLists, args.outputType,
-							args.dryMode, args.encoding, verbose or verboseVerbose, verboseVerbose )
+							fmt, fmtEntry, args.initSnippets, args.filterSnippet, args.writeEmptyLists,
+							args.outputType, args.dryMode, args.encoding, verbose or verboseVerbose, verboseVerbose )
 	results					= []
 	preventRedundantLists	= True
 	if args.output is not None:
@@ -526,18 +536,22 @@ else:
 									"curDir"	: os.getcwd(),
 									"dryMode"	: args.dryMode,
 								  }
-				g				= MakeList.getGlobals()
-				for f in results:
+				g				= makeList.getGlobals()
+				outputEntries	= copy.copy( results )
+				for num, f in enumerate( results ):
 					l[ "filePath"]	= f
 					try:
 						if verboseVerbose:
 							print( "Executing python snippet for file \"{}\".".format( f ) )
 						exec( outputSnippet, g, l )
+						if "outputEntry" in l:
+							outputEntries[ num ] = l[ "outputEntry" ]
 					except:
 						if not ignorePythonErrors:
 							raise
 						traceback.print_tb( exc.__traceback__, None, None )
 						sys.stderr.write( "Entry \"{}\" ignored.\n".format( f ) )
+				results	= outputEntries
 			except:
 				if not ignorePythonErrors:
 					raise
