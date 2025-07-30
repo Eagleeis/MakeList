@@ -538,16 +538,19 @@ else:
 	collectResults			= output or args.outputSnippet
 
 	for directory in args.directories if args.directories is not None else ( "", ):
-		if collectResults:
-			subResults = makeList.startScanning(	args.prefix, directory, not args.noSubDirs,
-													preventRedundantLists, ignorePythonErrors )
-			if subResults:
-				if absPath:
-					subResults	= [ os.path.abspath( os.path.join( directory, _ ) ) for _ in subResults ]
-				results.extend( subResults )
+		if directory == "" or os.path.isdir( directory ):
+			if collectResults:
+				subResults = makeList.startScanning(	args.prefix, directory, not args.noSubDirs,
+														preventRedundantLists, ignorePythonErrors )
+				if subResults:
+					if absPath:
+						subResults	= [ os.path.abspath( os.path.join( directory, _ ) ) for _ in subResults ]
+					results.extend( subResults )
+			else:
+				makeList.startScanning( args.prefix, directory, not args.noSubDirs,
+										preventRedundantLists, ignorePythonErrors )
 		else:
-			makeList.startScanning( args.prefix, directory, not args.noSubDirs,
-									preventRedundantLists, ignorePythonErrors )
+			raise FileNotFoundError( "Directory \"{}\" does not exist!".format( directory ) )
 	if results:
 		if args.outputSnippet:
 			try:

@@ -56,30 +56,50 @@ class EvalGlobList:
 		options		= {}
 		listFile	= None
 
-		def checkComment( line ):
+		def checkComment( line, checkQuoted, checkOptions ):
 			# Return:	True	Line should be ignored since it is a comment
 			if line.startswith( "#" ):
-				if line.startswith( "#@sortMethod=" ):
-					method	= line[ 13 : ].strip()
-					if method == "humanSortIgnoreKey":
-						options[ "sortMethod" ] = humanSortIgnoreKey
-					else:
-						raise Exception( "Invalid sort method \"{}\" specified!".format( method ) )
-				#elif line.startswith( "#@excludePrefix=" ):
-				#	excludePrefix = line[ 16 : ]
-				#	options[ "excludePrefix" ] = excludePrefix
-				elif line.startswith( "#@" ):
-					raise Exception( "Unsupported option \"{}\" specified!".format( line ) )
+				if checkOptions:
+					if line.startswith( "#@sortMethod=" ):
+						method	= line[ 13 : ].strip()
+						if method == "humanSortIgnoreKey":
+							options[ "sortMethod" ] = humanSortIgnoreKey
+						else:
+							raise Exception( "Invalid sort method \"{}\" specified!".format( method ) )
+					#elif line.startswith( "#@excludePrefix=" ):
+					#	excludePrefix = line[ 16 : ]
+					#	options[ "excludePrefix" ] = excludePrefix
+					elif line.startswith( "#@" ):
+						raise Exception( "Unsupported option \"{}\" specified!".format( line ) )
+				return False
+			elif checkQuoted and not line.startswith( "\"" ):
 				return False
 			return True
+		def returnUnchanged( line ):
+			return line
+		def returnUnquoted( line ):
+			if line.startswith( "\"" ) and line.endswith( "\"" ):
+				return line[ 1 : -1 ]
+			raise Exception( "Quoted line expected. Found line: {}".format( line ) )
 
 		for inputPath in inputs:
 			if os.path.exists:
 				for listFile in ( inputPath, ) if os.path.isfile( inputPath ) else [ _ for _ in glob.glob( inputPath ) if os.path.isfile( _ ) ]:
 					if self.__verbose:
 						print( listFile )
+					finalLine			= returnUnchanged
+					if listFile.endswith( ".m3u" ) or listFile.endswith( ".m3u8" ):
+						checkQuoted		= False
+						checkOptions	= False
+					elif listFile.endswith( ".sld" ):
+						checkQuoted		= True
+						checkOptions	= False
+						finalLine		= returnUnquoted
+					else:
+						checkQuoted		= False
+						checkOptions	= True
 					with open( listFile ) as fh:
-						results.extend( [ ( _, listFile, lNum ) for lNum, _ in enumerate( fh.read().split( "\n" ) ) if not not _.strip() and checkComment( _ ) ] )
+						results.extend( [ ( finalLine( _ ), listFile, lNum ) for lNum, _ in enumerate( fh.read().split( "\n" ) ) if not not _.strip() and checkComment( _, checkQuoted, checkOptions ) ] )
 
 			else:
 				raise Exception( "Input path \"{}\" does not exist!".format( inputPath ) )
