@@ -245,19 +245,19 @@ class EvalGlobList:
 examples = r"""Here are some examples, how to use this script:
 
 Function: Read list containing fnmatch regular expression (fnmatch) and write to specified output path.
-evalGlobList.py -g=e:\gfx\_lists\_definitions_\Konzerte.txt -r=e:\gfx\_lists\movies\.m3u8 -o=movies_Konzerte.m3u8
+evalGlobList.py -g=e:\gfx\_createLists\_defsMovies_\Konzerte.edef -r=e:\gfx\_lists\movies\*.m3u8 -o=movies_Konzerte.m3u8
 
 Function: Same as before but change each line.
-evalGlobList.py -g=e:\gfx\_lists\_definitions_\Konzerte.txt -r=e:\gfx\_lists\movies\.m3u8 -o=movies_Konzerte.m3u8 -s="line.replace(\"../../\",\"..\")"
+evalGlobList.py -g=e:\gfx\_createLists\_defsMovies_\Konzerte.edef -r=e:\gfx\_lists\movies\*.m3u8 -o=movies_Konzerte.m3u8 -s="line.replace(\"../../\",\"..\")"
 
 Function: Evaluate each list in folder \"definitions\" and write one combined list to the output.
-evalGlobList.py -g=e:\gfx\_lists\_definitions_\*.txt -r=e:\gfx\_lists\movies\.m3u8 -o=movies_HT_and_Konzerte.m3u8
+evalGlobList.py -g=e:\gfx\_createLists\_defsMovies_\*.edef -r=e:\gfx\_lists\movies\*.m3u8 -o=allMovies.m3u8
 
 """
 
 ###########################################################################################################################
 # Main
-parser = argparse.ArgumentParser( prog = "Make a file list", description = "Scan specified folders and their sub folders for files and write the list line-by-line to a file (.m3u). Existing files will be overwritten." )
+parser = argparse.ArgumentParser( prog = "Evaluate regular expressions in .edef files." )
 parser.add_argument( "-v", "--verbose", action = "store_true", help = "Enable verbose mode." )
 parser.add_argument( "--ex", "--examples", dest = "examples", action = "store_true", help = "Show some examples how to use this script." )
 

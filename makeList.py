@@ -23,7 +23,7 @@ import sys
 defListsFolder			= "lists"
 
 # Default extensions which will be party of m3u lists
-extensionsMusic			= ".wma,.mpa,.wav,.mp3,.m4a,.mp4,.mov,.mkv,.avi,.mpg,.mpeg,.wma,.wav,.ogg,.wmv,.flac,.au,.mpg,.mpeg,.mkv,.wmv,.webm,.mts,.vob"
+extensionsMusic			= ".wma,.mpa,.wav,.mp3,.m4a,.ogg,.flac,.au"
 # Ignore the following extensions while scanning for music files (output type: m3u)
 ignoreExtensionsMusic	=".txt,.jpg,.bmp,.gif,.png,.tif,.tiff,.ini,.m3u,.lst,.cue,.nfo,.sfv,.pdf,.doc,.rtf,.xls,.xlsx,.html,.htm,.url,.pls,.ape,.apl"
 # Default extensions which will be party of m3u lists
@@ -35,6 +35,104 @@ extensionsMovies		= ".mov,.mp4,.avi,.mpg,.mpeg,.mkv,.wmv,.webm,.mts,.vob"
 reSplit	= re.compile( r'(\d+)' )
 def humanSortIgnoreKey( s ):
 	return [ int( t ) if i & 1 else t.lower() for i, t in enumerate( reSplit.split( s ) ) ]
+
+###########################################################################################################################
+class Utils:
+	#######################################################################################################################
+	def __init__( self, makeList ):
+		self.__dryMode			= makeList.getDryMode()
+		self.__verbose			= makeList.getVerbose()
+		self.__verboseVerbose	= makeList.getVerboseVerbose()
+
+	#######################################################################################################################
+	# Copy /srcFile/ to /destFile/ including stat information (date, access...) and mode
+	# information (user, group...)
+	def copyFile( self, srcFile, destFile, skipErrors = False, overwrite = True, copyStat = True, copyMode = True ):
+		if self.__dryMode:
+			if self.__verbose:
+				print( "Skipped copying \"{}\" to \"{}\".".format( srcFile, destFile ) )
+		else:
+			if self.__verbose:
+				print( "Copying \"{}\" to \"{}\".".format( srcFile, destFile ) )
+			try:
+				dirPath	= os.path.dirname( destFile )
+				if dirPath and not os.path.isdir( dirPath ):
+					def createParent( spDir, dpDir ):
+						sppDir	= os.path.dirname( spDir )
+						dppDir	= os.path.dirname( dpDir )
+						if dppDir and not os.path.isdir( dppDir ):
+							createParent( sppDir, dppDir )
+						os.makedirs( dpDir )
+						if copyStat:
+							shutil.copystat( spDir, dpDir )
+						if copyMode:
+							shutil.copymode( spDir, dpDir )
+					createParent( os.path.dirname( srcFile ), dirPath )
+				if os.path.isfile( destFile ):
+					if overwrite:
+						os.remove( destFile )
+					else:
+						raise Exception( "File already exists!" )
+				if copyStat:
+					shutil.copy2( srcFile, destFile )
+					shutil.copystat( os.path.dirname( srcFile ), dirPath )
+				else:
+					shutil.copy( srcFile, destFile )
+				shutil.copymode( srcFile, destFile )
+			except Exception as e:
+				if not skipErrors:
+					raise
+				else:
+					sys.stderr.write( "Copy Error: {}\n".format( e ) )
+
+	#######################################################################################################################
+	def moveFile( self, srcFile, destFile, skipErrors = False, overwrite = True ):
+		if self.__dryMode:
+			if self.__verbose:
+				print( "Skipped moving \"{}\" to \"{}\".".format( srcFile, destFile ) )
+		else:
+			if self.__verbose:
+				print( "Moving \"{}\" to \"{}\".".format( srcFile, destFile ) )
+			try:
+				dirPath	= os.path.dirname( destFile )
+				if not os.path.isdir( dirPath ):
+					os.makedirs( dirPath )
+				if os.path.isfile( destFile ):
+					if overwrite:
+						os.remove( destFile )
+					else:
+						raise Exception( "File already exists!" )
+				shutil.move( srcFile, destFile )
+			except:
+				if not skipErrors:
+					raise
+				else:
+					sys.stderr.write( "Move Error: {}\n".format( e ) )
+
+	#######################################################################################################################
+	def removeFile( self, srcFile, skipErrors = False, removeEmptyDirs = True ):
+		if self.__dryMode:
+			if self.__verbose:
+				print( "Skipped removing \"{}\".".format( srcFile ) )
+		else:
+			if self.__verbose:
+				print( "Removing \"{}\".".format( srcFile ) )
+			try:
+				os.remove( srcFile )
+				if removeEmptyDirs:
+					def __removeDirs( pDir ):
+						if os.path.exists( pDir ) and not os.listdir( pDir ):
+							if self.__verbose:
+								print( "Removing empty directory \"{}\".".format( pDir ) )
+							os.removedirs( pDir )
+							__removeDirs( os.path.dirname( pDir ) )
+					__removeDirs( os.path.dirname( srcFile ) )
+			except:
+				if not skipErrors:
+					raise
+				else:
+					sys.stderr.write( "Remove Error: {}\n".format( e ) )
+
 
 ###########################################################################################################################
 class MakeList:
@@ -77,6 +175,9 @@ class MakeList:
 		elif outputType == "music":
 			defListExtension			= ".lst"
 			defExtensions				= extensionsMusic
+		elif outputType == "media":
+			defListExtension			= ".lst"
+			defExtensions				= "{},{},{}".format( extensionsPictures, extensionsMovies, extensionsMusic )
 		elif outputType == "fileList":
 			defListExtension			= ".lst"
 			defFmtLists					= "{0}{3}"
@@ -95,7 +196,7 @@ class MakeList:
 			defOutputMode				= "unix"
 			defFmtAllSubEntries			= "{0}{3}"
 			defFmtLists					= "{0}{3}"
-			#defFmtEntry					= "file:///{0}"
+			#defFmtEntry				= "file:///{0}"
 			defFmt						= "#EXTM3U\n{0}"
 		else:
 			raise Exception( "Unsupported output type \"{}\" specified!".format( outputType ) )
@@ -106,7 +207,7 @@ class MakeList:
 
 		# extensions:	Extensions to be added to the list. All other extensions are ignored. 
 		if extensions is not None:
-			self.__extensions		= { _.strip().lower() for _ in extensions.split( "," ) } \
+			self.__extensions		= { _.strip().lower() for _ in self.resolveExtensions( extensions, defExtensions, self.__listExtension ) } \
 										if extensions != "" else None
 		else:
 			self.__extensions		= { _.strip().lower() for _ in defExtensions.split( "," ) } \
@@ -154,14 +255,36 @@ class MakeList:
 				self.__reformatEntries	= self.__reformatNone
 			else:
 				raise Exception( "Unsupported output mode option \"{}\" specified!".format( outputMode ) )
+		self.__utils				= Utils( self )
 
+	#######################################################################################################################
+	# Resolve the following place holders in extenion string:
+	#	{0}			default extensions associated with selected output type
+	#	{1}			extension of list associated with selected output type
+	#	{2}			extensions of pictures
+	#	{3}			extensions of movies
+	#	{4}			extensions of music
+	def resolveExtensions( self, extensions, default, listExtension ):
+		pictures	= extensionsPictures
+		movies		= extensionsMovies
+		music		= extensionsMusic
+		return extensions.format( default, listExtension, pictures, movies, music ).split( "," )
+	
 	#######################################################################################################################
 	def getVerbose( self ):
 		return self.__verbose
 
 	#######################################################################################################################
+	def getUtils( self ):
+		return self.__utils
+
+	#######################################################################################################################
 	def getVerboseVerbose( self ):
 		return self.__verboseVerbose
+
+	#######################################################################################################################
+	def getDryMode( self ):
+		return self.__dryMode
 
 	#######################################################################################################################
 	def __reformatNone( self, s ):
@@ -359,7 +482,9 @@ class MakeList:
 				try:
 					snippet	= compile( self.__snippet, "filterSnippet", "eval" )
 					l		= {	"filePath"		: None,
-								"curDir"		: dReal		}
+								"curDir"		: dReal,
+								"utils"			: makeList.getUtils(),
+							  }
 					g		= self.__globals
 					def checkSnippet( f ):
 						l[ "filePath" ]	= f
@@ -415,7 +540,7 @@ folder and to the "__lists__" folder.
 Usage: makeList.py -d=e:\music -l=e:\music\_lists_ -t=m3u
 
 ###########################################################################################################################
-Create lists of folder "e:\\music" and all its sub folders and write all
+Create lists of folder "e:\music" and all its sub folders and write all
 m3u lists to the specified folder. Each line in written files shall have
 the prefix "../" followed by the relative path of any selected file.
 Usage: makeList.py -d=e:\music --fmtOnlyEntries="" --fmtAllSubEntries="" -l=lists -p=../ -t=m3u
@@ -437,14 +562,24 @@ contains " Bach" in the path.
 makeList.py -e=.mp3,.ogg -d="e:\music\Jazz" --filterSnippet="fnmatch.fnmatch( filePath, '* Bach*')"
 
 ###########################################################################################################################
+Copy all media files (pictures,music,movies) located at %SRC% including applicable folder structure
+to %DEST%. Consider to set utils.copyFile(skipError=True)
+makeList.py -d="%SRC%" -t=media --os="utils.copyFile(r'%SRC%\\'+filePath,r'%DEST%\\'+filePath)" -v
+
+###########################################################################################################################
+Move all media files (pictures,music,movies) located at %SRC% into one(!) %DEST% folder. Consider
+to set utils.moveFile(skipError=True)
+makeList.py -d="%SRC%" -t=media --os="utils.moveFile(r'%SRC%\\'+filePath,r'%DEST%\\'+os.path.basename(filePath))" -v
+
+###########################################################################################################################
 Copy all selected files (filePath contains "* Bach*") to the folder "c:\data\temp\list" using
-an custom Python snippet.
-makeList.py -a -o="" -d="e:\music\Jazz" --filterSnippet="fnmatch.fnmatch( filePath, '* Bach*')" --os="shutil.copyfile( filePath, 'c:\\data\\temp\\list\\' + os.path.basename( filePath ) )" -v
+a custom Python snippet. All files will be copied into one folder!
+makeList.py -a -o="" -d="e:\music\Jazz" --filterSnippet="fnmatch.fnmatch( filePath, '* Bach*')" --os="utils.copyFile( filePath, 'c:\\data\\temp\\list\\' + os.path.basename( filePath ) )" -v
 
 ###########################################################################################################################
 Copy all selected movies with partial parts "*\\HT0*" to the existing folder "c:\data\temp\list"
 using a custom Python snippet.
-makeList.py -a -o="" -t=movies -d="e:\gfx\Ausflüge" --filterSnippet="fnmatch.fnmatch( filePath, '*\\*HT0*')" --os="shutil.copyfile( filePath, 'c:\\data\\temp\\list\\' + os.path.basename( filePath ) )" -v -D
+makeList.py -a -o="" -t=movies -d="e:\gfx\Ausflüge" --filterSnippet="fnmatch.fnmatch( filePath, '*\\*HT0*')" --os="utils.copyFile( filePath, 'c:\\data\\temp\\list\\' + os.path.basename( filePath ) )" -v -D
 
 ###########################################################################################################################
 Remove all list files of types (.sld, .m3u, .m3u8) within folder %GFX% but not in sub folder "_Playlisten_".
@@ -464,7 +599,7 @@ makeList.py -d=%GFX% -t=movies --initSnippets="import videoInfo;wi=videoInfo.Vid
 
 ###########################################################################################################################
 # Main
-parser = argparse.ArgumentParser( prog = "Make a file list", description = "Scan specified folders and their sub folders for files and write the list line-by-line to a file (.lst). Existing lists will be overwritten." )
+parser = argparse.ArgumentParser( prog = "Make a file list", description = "Scan specified folders and their sub folders for files and output the list line-by-line." )
 parser.add_argument( "-v", "--verbose", action = "store_true", help = "Enable verbose mode." )
 parser.add_argument( "--vv", "--verboseVerbose", dest = "verboseVerbose", action = "store_true", help = "Enable very verbose mode." )
 parser.add_argument( "--ex", "--examples", dest = "examples", action = "store_true", help = "Show some examples how to use this script." )
@@ -472,23 +607,23 @@ parser.add_argument( "--ex", "--examples", dest = "examples", action = "store_tr
 gInput = parser.add_argument_group( "Input options" )
 gInput.add_argument( "-d", "--directory", dest = "directories", help = "Start directory to be scanned. Option may be multiple defined. Default: \"\"", action = "append", default = None )
 gInput.add_argument( "-x", "--excludeDirectory", dest = "excludedDirectories", help = "Directory to be excluded from scanning. Path must be relative to --directory. Option may be multiple defined. Default: \"\"", action = "append", default = None )
-gInput.add_argument( "-e", "--extensions", help = "List of supported extensions as comma-separated string which will be part of the output list. Set to \"\" to add all files. Default: Default extensions of output type", default = None )
+gInput.add_argument( "-e", "--extensions", help = "List of supported extensions as comma-separated string which will be part of the output list. The following place holders will be resolved: {0} comma-separated list of extensions associated with the output type, {1}: default list extension, {2}: default picture extensions, {3}: default movies extensions, {4}: default music extensions. Set to \"\" to add all files. Default: Default extensions of output type", default = None )
 gInput.add_argument( "-i", "--ignore", help = "List of extensions to be ignored while scanning. All other extensions will raise a warning to STDOUT. Set to \"\" to skip this feature. Default: Default ignores of output type", default = None )
 gInput.add_argument( "-N", "--noSubDirs", action = "store_true", help = "Do not scan sub directories." )
 gInput.add_argument( "--is", "--initSnippets", dest = "initSnippets", help = "Python snippet to initialize the snippets and prepare globals for Python snippets. The following globals are provided: os, sys, re, glob, copy, math, shutil, fnmatch, traceback. The following locals are provided: makeList, verbose and verboseVerbose. Default: None", default = None )
 
 gOutput = parser.add_argument_group( "Output options" )
-gOutput.add_argument( "-t", "--type", dest = "outputType", help = "Type of output lists. Valid options are: fileList, pictures, movies, m3u, m3uExt. Default: None", default = None )
+gOutput.add_argument( "-t", "--type", dest = "outputType", help = "Type of output lists. Valid options are: fileList, pictures, movies, music, media, m3u, m3uExt. Default: None", default = None )
 gOutput.add_argument( "-m", "--mode", dest = "outputMode", help = "Output Mode of directory separators. Options are: None: Native separator, UNIX: Output list with \"/\" separator, Windows: Output list with \"\\\" separator. Default: Default output mode of output type", default = None )
 gOutput.add_argument( "-l", "--listsFolder", help = "A folder any list shall also be written to. All path and drive separators shall be converted to \"_\". Default: Disabled", default = None )
-gOutput.add_argument( "-s", "--filterSnippet", help = "Python snippet (type eval) to be customized while scanning to check, if an entry should be included or not. The following globals are defined: os, re, sys, glob, copy, math, shutil, fnmatch, traceback. The following locals are defined: filePath, curDir. Default: Disabled", default = None )
+gOutput.add_argument( "-s", "--filterSnippet", help = "Python snippet (type eval) to be customized while scanning to check, if an entry should be included or not. The following globals are defined: os, re, sys, glob, copy, math, shutil, fnmatch, traceback. The following locals are defined: filePath, curDir, utils. Default: Disabled", default = None )
 gOutput.add_argument( "-p", "--prefix", help = "A prefix which shall be added to any element in the lists written to the lists folder (--listsFolder). This can be used to replace e.g. \"..\" to a place holder, e.g. $MYMUSIC. Default: Auto detected relative path from lists folder (--listsFolder) to folder to be scanned (see option --directory).", default = None )
 gOutput.add_argument( "-E", "--encoding", help = "The encoding to be used in output lists. Default: {}".format( locale.getencoding() ), default = None )
 gOutput.add_argument( "-W", "--writeEmptyLists", action = "store_true", help = "Do write empty lists. Default: Overwrite any list and write even empty content." )
 gOutput.add_argument( "-D", "--dryMode", action = "store_true", help = "Dry mode. No changes will be done to disc. Default: False.", default = False )
 gOutput.add_argument( "-o", "--output", help = "Output final list to specified file. Set to \"-\" to print to STDOUT. Set to \"\" to prevent printing to STDOUT. Default: STDOUT if outputType and --fmt* are not specified. Otherwise: None", default = None )
 gOutput.add_argument( "-a", "--absPath", dest = "absPath", action = "store_true", help = "Create absolute path of entries in final outputs. Option has no effect to fmt lists. Default: False.", default = False )
-gOutput.add_argument( "--os", "--outputSnippet", dest = "outputSnippet", help = "Python snippet (type: exec) executed for any final entry of output list in any case and independently on other options for any final line. The following globals are defined: os, re, sys, glob, copy, math, shutil, fnmatch, traceback. The following locals are defined: filePath, curDir, dryMode. If locals[\"outputEntry\"] is defined after executing the snippet, it shall be written to the output instead \"filePath\". Default: Undefined.", default = None )
+gOutput.add_argument( "--os", "--outputSnippet", dest = "outputSnippet", help = "Python snippet (type: exec) executed for any final entry of output list in any case and independently on other options for any final line. The following globals are defined: os, re, sys, glob, copy, math, shutil, fnmatch, traceback. The following locals are defined: filePath, curDir, dryMode, utils. If locals[\"outputEntry\"] is defined after executing the snippet, it shall be written to the output instead \"filePath\". Default: Undefined.", default = None )
 gOutput.add_argument( "--ip", "--ignorePythonErrors", dest = "ignorePythonErrors", action = "store_true", help = "Ignore exceptions in executed Python snippets. Default: False.", default = False )
 	
 gFmtList = parser.add_argument_group( "Output Lists",
@@ -558,6 +693,7 @@ else:
 				l				= {	"filePath"	: None,
 									"curDir"	: os.getcwd(),
 									"dryMode"	: args.dryMode,
+									"utils"		: makeList.getUtils(),
 								  }
 				g				= makeList.getGlobals()
 				outputEntries	= copy.copy( results )

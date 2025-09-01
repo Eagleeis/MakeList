@@ -29,6 +29,7 @@ class VideoChecker:
 		self.__videos			= {}
 		self.__fmtOutputline	= fmtOutputline if fmtOutputline else "{0};{3:_};{4}"
 		self.__convSize			= convSize
+
 	#######################################################################################################################
 	def filter( self, curDir, subFilePath ):
 		if self.__verbose:
@@ -54,6 +55,7 @@ class VideoChecker:
 			if self.__verboseVerbose:
 				traceback.print_tb( e.__traceback__ )
 			return False
+
 	#######################################################################################################################
 	def output( self, filePath ):
 		return self.__videos[ filePath ]
