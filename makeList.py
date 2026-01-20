@@ -47,43 +47,62 @@ class Utils:
 	#######################################################################################################################
 	# Copy /srcFile/ to /destFile/ including stat information (date, access...) and mode
 	# information (user, group...)
-	def copyFile( self, srcFile, destFile, skipErrors = False, overwrite = True, copyStat = True, copyMode = True ):
-		if self.__dryMode:
-			if self.__verbose:
-				print( "Skipped copying \"{}\" to \"{}\".".format( srcFile, destFile ) )
-		else:
-			if self.__verbose:
-				print( "Copying \"{}\" to \"{}\".".format( srcFile, destFile ) )
-			try:
-				dirPath	= os.path.dirname( destFile )
-				if dirPath and not os.path.isdir( dirPath ):
-					def createParent( spDir, dpDir ):
-						sppDir	= os.path.dirname( spDir )
-						dppDir	= os.path.dirname( dpDir )
-						if dppDir and not os.path.isdir( dppDir ):
-							createParent( sppDir, dppDir )
-						os.makedirs( dpDir )
+	def copyFile( self, srcFile, destFile, skipErrors = False, overwrite = True, copyStat = True, copyMode = True,
+		stripFilenames = True, skipInvalidFilenames = True, skipNonExisting = False, verbose = None ):
+		skipEntry		= True
+		verbose			= self.__verbose and verbose is None or verbose 
+		if stripFilenames:
+			srcFile		= srcFile.strip()
+			destFile	= destFile.strip()
+		if srcFile or not skipInvalidFilenames:
+			skipEntry	= False
+			if self.__dryMode:
+				if verbose:
+					print( "Skipped copying \"{}\" to \"{}\".".format( srcFile, destFile ) )
+			else:
+				if verbose:
+					print( "Copying \"{}\" to \"{}\".".format( srcFile, destFile ) )
+				try:
+					if os.path.exists( srcFile ):
+						dirPath	= os.path.dirname( destFile )
+						if dirPath and not os.path.isdir( dirPath ):
+							def createParent( spDir, dpDir ):
+								sppDir	= os.path.dirname( spDir )
+								dppDir	= os.path.dirname( dpDir )
+								if dppDir and not os.path.isdir( dppDir ):
+									createParent( sppDir, dppDir )
+								os.makedirs( dpDir )
+								if copyStat:
+									shutil.copystat( spDir, dpDir )
+								elif copyMode:
+									shutil.copymode( spDir, dpDir )
+							createParent( os.path.dirname( srcFile ), dirPath )
+						if os.path.isfile( destFile ):
+							if overwrite:
+								os.remove( destFile )
+							elif overwrite is None:
+								if verbose:
+									print( "File \"{}\" already exists! Copying skipped.".format( destFile ) )
+								return skipEntry, destFile 
+							else:
+								raise Exception( "File \"{}\" already exists!".format( destFile ) )
 						if copyStat:
-							shutil.copystat( spDir, dpDir )
-						if copyMode:
-							shutil.copymode( spDir, dpDir )
-					createParent( os.path.dirname( srcFile ), dirPath )
-				if os.path.isfile( destFile ):
-					if overwrite:
-						os.remove( destFile )
+							shutil.copy2( srcFile, destFile )
+						else:
+							shutil.copy( srcFile, destFile )
+							if copyMode:
+								shutil.copymode( srcFile, destFile )
 					else:
-						raise Exception( "File already exists!" )
-				if copyStat:
-					shutil.copy2( srcFile, destFile )
-					shutil.copystat( os.path.dirname( srcFile ), dirPath )
-				else:
-					shutil.copy( srcFile, destFile )
-				shutil.copymode( srcFile, destFile )
-			except Exception as e:
-				if not skipErrors:
-					raise
-				else:
-					sys.stderr.write( "Copy Error: {}\n".format( e ) )
+						if not skipNonExisting:
+							raise Exception( "File \"{}\" does not exist!".format( srcFile ) )
+						if skipInvalidFilenames:
+							skipEntry	= True
+				except Exception as e:
+					if not skipErrors:
+						raise
+					else:
+						sys.stderr.write( "Copy Error: {}\n".format( e ) )
+		return skipEntry, destFile
 
 	#######################################################################################################################
 	def moveFile( self, srcFile, destFile, skipErrors = False, overwrite = True ):
@@ -595,6 +614,10 @@ makeList.py -d=%GFX% -t=movies --initSnippets="import videoInfo;wi=videoInfo.Vid
 Same as before but size if printed in GB with 2 decimal places.
 makeList.py -d=%GFX% -t=movies --initSnippets="import videoInfo;wi=videoInfo.VideoChecker(makeList,'{0:<90}\t{3:>15_.2f}\t{4}',1/1024/1024))" --filterSnippet="wi.filter(curDir,filePath)" --os=outputEntry=wi.output(filePath) -o="-"
 
+###########################################################################################################################
+Copy files defined a list (line-by-line) to another folder including directory structure.
+makeList.py -d=e:\copyListe.txt --os="src='m:\\Movies_1\\'+filePath.strip();outputEntry='d:\\'+filePath.strip();utils.copyFile(src,outputEntry ) if filePath.strip() and not os.path.exists(outputEntry) else print('Skipped')" --ip -v
+
 """
 
 ###########################################################################################################################
@@ -611,6 +634,7 @@ gInput.add_argument( "-e", "--extensions", help = "List of supported extensions 
 gInput.add_argument( "-i", "--ignore", help = "List of extensions to be ignored while scanning. All other extensions will raise a warning to STDOUT. Set to \"\" to skip this feature. Default: Default ignores of output type", default = None )
 gInput.add_argument( "-N", "--noSubDirs", action = "store_true", help = "Do not scan sub directories." )
 gInput.add_argument( "--is", "--initSnippets", dest = "initSnippets", help = "Python snippet to initialize the snippets and prepare globals for Python snippets. The following globals are provided: os, sys, re, glob, copy, math, shutil, fnmatch, traceback. The following locals are provided: makeList, verbose and verboseVerbose. Default: None", default = None )
+gInput.add_argument( "-I", "--inputEncoding", help = "The encoding to be used in input lists. Default: {}".format( locale.getencoding() ), default = None )
 
 gOutput = parser.add_argument_group( "Output options" )
 gOutput.add_argument( "-t", "--type", dest = "outputType", help = "Type of output lists. Valid options are: fileList, pictures, movies, music, media, m3u, m3uExt. Default: None", default = None )
@@ -623,7 +647,7 @@ gOutput.add_argument( "-W", "--writeEmptyLists", action = "store_true", help = "
 gOutput.add_argument( "-D", "--dryMode", action = "store_true", help = "Dry mode. No changes will be done to disc. Default: False.", default = False )
 gOutput.add_argument( "-o", "--output", help = "Output final list to specified file. Set to \"-\" to print to STDOUT. Set to \"\" to prevent printing to STDOUT. Default: STDOUT if outputType and --fmt* are not specified. Otherwise: None", default = None )
 gOutput.add_argument( "-a", "--absPath", dest = "absPath", action = "store_true", help = "Create absolute path of entries in final outputs. Option has no effect to fmt lists. Default: False.", default = False )
-gOutput.add_argument( "--os", "--outputSnippet", dest = "outputSnippet", help = "Python snippet (type: exec) executed for any final entry of output list in any case and independently on other options for any final line. The following globals are defined: os, re, sys, glob, copy, math, shutil, fnmatch, traceback. The following locals are defined: filePath, curDir, dryMode, utils. If locals[\"outputEntry\"] is defined after executing the snippet, it shall be written to the output instead \"filePath\". Default: Undefined.", default = None )
+gOutput.add_argument( "--os", "--outputSnippet", dest = "outputSnippet", help = "Python snippet (type: exec) executed for any final entry of output list in any case and independently on other options for any final line. The following globals are defined: os, re, sys, glob, copy, math, shutil, fnmatch, traceback. The following locals are defined: filePath, curDir, dryMode, utils. If locals[\"outputEntry\"] is defined after executing the snippet, it shall be written to the output instead \"filePath\". If locals[\"skipEntry\"] is True, the filePath shall be skipped. Default: Undefined.", default = None )
 gOutput.add_argument( "--ip", "--ignorePythonErrors", dest = "ignorePythonErrors", action = "store_true", help = "Ignore exceptions in executed Python snippets. Default: False.", default = False )
 	
 gFmtList = parser.add_argument_group( "Output Lists",
@@ -684,6 +708,8 @@ else:
 			else:
 				makeList.startScanning( args.prefix, directory, not args.noSubDirs,
 										preventRedundantLists, ignorePythonErrors )
+		elif os.path.isfile( directory ):
+			results	= open( directory, encoding = args.inputEncoding ).read().split( "\n" )
 		else:
 			raise FileNotFoundError( "Directory \"{}\" does not exist!".format( directory ) )
 	if results:
@@ -694,27 +720,34 @@ else:
 									"curDir"	: os.getcwd(),
 									"dryMode"	: args.dryMode,
 									"utils"		: makeList.getUtils(),
+									"skipEntry"	: False,
 								  }
 				g				= makeList.getGlobals()
 				outputEntries	= copy.copy( results )
+				skippedEntries	= 0
 				for num, f in enumerate( results ):
-					l[ "filePath"]	= f
+					l[ "filePath"]		= f
+					l[ "skipEntry" ]	= False
 					try:
 						if verboseVerbose:
 							print( "Executing python snippet for file \"{}\".".format( f ) )
 						exec( outputSnippet, g, l )
 						if "outputEntry" in l:
-							outputEntries[ num ] = l[ "outputEntry" ]
-					except:
+							outputEntries[ num - skippedEntries ] = l[ "outputEntry" ]
+						if l[ "skipEntry" ]:
+							del outputEntries[ num - skippedEntries ]
+							skippedEntries	+= 1
+					except Exception as exc:
 						if not ignorePythonErrors:
 							raise
 						traceback.print_tb( exc.__traceback__, None, None )
-						sys.stderr.write( "Entry \"{}\" ignored.\n".format( f ) )
+						sys.stderr.write( "Entry \"{}\" ignored. Reason: {}\n".format( f, exc ) )
 				results	= outputEntries
-			except:
+			except Exception as exc:
 				if not ignorePythonErrors:
 					raise
 				traceback.print_tb( exc.__traceback__, None, None )
+				sys.stderr.write( "Error while evaluating entries using outputSnippet. Behaviour undefined! Reason: {}\n".format( exc ) )
 		if output:
 			if output == "-" or output == True:
 				print( "\n".join( results ) )
