@@ -1,10 +1,16 @@
 ###########################################################################################################################
 # Brief : Helper class for Python script makeList.py to create lists of movies
+#         including video properties.
 #         The output shall contain relative file path with size (as configured)
 #         and codec of embedded video.
 #         This script requires Python module "videoprops".
 # Author: Jan Blumenthal (eagleeis@gmx.de)
-# Usage : python makeList.py -d=%MOVIES% -t=movies --initSnippets="import videoInfo;wi=videoInfo.VideoChecker(makeList,'{0:<90}\t{3:>15_.2f}\t{4}',1/1024/1024))" --filterSnippet="wi.filter(curDir,filePath)" --os=outputEntry=wi.output(filePath) -o="-"
+#
+# Examples:
+#
+# Create list with properties of movies.
+# set MOVIES=myMovies
+# python makeList.py -d="%MOVIES%" -t=movies --initSnippet="import videoInfo;wi=videoInfo.VideoChecker(makeList,'{0:<90}\t{3:>15_.2f}\t{4}',1/1024/1024))" --filterSnippet="wi.filter(curDir,filePath)" --os=outputEntry=wi.output(filePath) -o="-"
 ###########################################################################################################################
 import os
 import traceback

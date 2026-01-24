@@ -37,6 +37,10 @@ def humanSortIgnoreKey( s ):
 	return [ int( t ) if i & 1 else t.lower() for i, t in enumerate( reSplit.split( s ) ) ]
 
 ###########################################################################################################################
+class MLException( Exception ):
+	pass
+
+###########################################################################################################################
 class Utils:
 	#######################################################################################################################
 	def __init__( self, makeList ):
@@ -85,7 +89,7 @@ class Utils:
 									print( "File \"{}\" already exists! Copying skipped.".format( destFile ) )
 								return skipEntry, destFile 
 							else:
-								raise Exception( "File \"{}\" already exists!".format( destFile ) )
+								raise MLException( "File \"{}\" already exists!".format( destFile ) )
 						if copyStat:
 							shutil.copy2( srcFile, destFile )
 						else:
@@ -94,7 +98,7 @@ class Utils:
 								shutil.copymode( srcFile, destFile )
 					else:
 						if not skipNonExisting:
-							raise Exception( "File \"{}\" does not exist!".format( srcFile ) )
+							raise MLException( "File \"{}\" does not exist!".format( srcFile ) )
 						if skipInvalidFilenames:
 							skipEntry	= True
 				except Exception as e:
@@ -120,7 +124,7 @@ class Utils:
 					if overwrite:
 						os.remove( destFile )
 					else:
-						raise Exception( "File already exists!" )
+						raise MLException( "File already exists!" )
 				shutil.move( srcFile, destFile )
 			except:
 				if not skipErrors:
@@ -158,10 +162,10 @@ class MakeList:
 
 	#######################################################################################################################
 	def __init__( self, listsFolder, extensions, ignore, excludedDirectories, outputMode, fmtOnlyEntries, fmtAllSubEntries,
-				  fmtLists, fmt, fmtEntry, initSnippets, snippet, writeEmptyLists, outputType, dryMode, outputEncoding,
+				  fmtLists, fmt, fmtEntry, initSnippet, snippet, writeEmptyLists, outputType, dryMode, outputEncoding,
 				  verbose, verboseVerbose ):
 		if listsFolder is None and fmtLists:
-			raise Exception( "If option /fmtLists/ is specified, you need to specify a lists folder!" )
+			raise MLException( "If option /fmtLists/ is specified, you need to specify a lists folder!" )
 		self.__listsFolder			= os.path.abspath( os.path.normpath( listsFolder ) ) if listsFolder else None
 		self.__outputType			= outputType
 		self.__snippet				= snippet				# Python snippet to filter elements
@@ -170,7 +174,7 @@ class MakeList:
 		self.__verboseVerbose		= verboseVerbose
 		self.__writeEmptyLists		= writeEmptyLists		# True: Do not write empty lists, just remove existing lists
 		self.__excludedDirectories	= excludedDirectories	# folders within /listsFolder/ to be excluded
-		self.__globals				= self.__initGlobals( initSnippets )		# Globals for snippets
+		self.__globals				= self.__initGlobals( initSnippet )		# Globals for snippets
 
 		defListExtension			= None					# Extension of generated lists
 		defExtensions				= None					# Allowed extensions in files or None for all
@@ -218,7 +222,7 @@ class MakeList:
 			#defFmtEntry				= "file:///{0}"
 			defFmt						= "#EXTM3U\n{0}"
 		else:
-			raise Exception( "Unsupported output type \"{}\" specified!".format( outputType ) )
+			raise MLException( "Unsupported output type \"{}\" specified!".format( outputType ) )
 
 
 		self.__outputEncoding		= outputEncoding if outputEncoding is not None else defOutputEncoding
@@ -273,8 +277,30 @@ class MakeList:
 			elif not outputMode or outputMode == "none":
 				self.__reformatEntries	= self.__reformatNone
 			else:
-				raise Exception( "Unsupported output mode option \"{}\" specified!".format( outputMode ) )
+				raise MLException( "Unsupported output mode option \"{}\" specified!".format( outputMode ) )
 		self.__utils				= Utils( self )
+
+	#######################################################################################################################
+	def printInputSettings( self ):
+		print( "Lists Folder                 :", self.__listsFolder )
+		print( "Excluded Directories         :", self.__excludedDirectories ) # folders within /listsFolder/ to be excluded
+		print( "Extensions to be included    :", self.__extensions )
+		print( "Extensions to be ignored     :", self.__lIgnore )
+		print( "Filter Snippet               :", self.__snippet )
+		print( "Globals for snippets         :", ", ".join( self.__globals ) if self.__globals else None )
+
+	#######################################################################################################################
+	def printOutputSettings( self ):
+		print( "Dry Mode                     :", self.__dryMode )
+		print( "Output Encoding              :", self.__outputEncoding )
+		print( "Output List Entension        :", self.__listExtension )
+		print( "Write Empty Lists            :", self.__writeEmptyLists )
+		print( "Reformat Entries             :", self.__reformatEntries )
+		print( "Format                       :", self.__fmt )
+		print( "Format Lists                 :", self.__fmtLists )
+		print( "Format Entry                 :", self.__fmtEntry )
+		print( "Format Only Entries          :", self.__fmtOnlyEntries )
+		print( "Format All Sub Entries       :", self.__fmtAllSubEntries )
 
 	#######################################################################################################################
 	# Resolve the following place holders in extenion string:
@@ -451,7 +477,7 @@ class MakeList:
 		return []
 
 	#######################################################################################################################
-	def __initGlobals( self, initSnippets ):
+	def __initGlobals( self, initSnippet ):
 		g	= {	"os"		: os,
 				"sys"		: sys,
 				"re"		: re,
@@ -462,12 +488,12 @@ class MakeList:
 				"fnmatch"	: fnmatch,
 				"traceback"	: traceback,
 			  }
-		if initSnippets is not None:
+		if initSnippet is not None:
 			l					= {	"makeList"			: self,
 									"verbose"			: self.__verbose,
 									"verboseVerbose"	: self.__verboseVerbose,
 								  }
-			exec( initSnippets, g, l )
+			exec( initSnippet, g, l )
 			g.update( l )
 		return g
 
@@ -500,7 +526,8 @@ class MakeList:
 			if self.__snippet:
 				try:
 					snippet	= compile( self.__snippet, "filterSnippet", "eval" )
-					l		= {	"filePath"		: None,
+					l		= {	# Keep consistent with printing settings using "verboseVerbose"
+								"filePath"		: None,
 								"curDir"		: dReal,
 								"utils"			: makeList.getUtils(),
 							  }
@@ -514,7 +541,8 @@ class MakeList:
 						except Exception as exc:
 							if not ignorePythonErrors:
 								raise
-							traceback.print_tb( exc.__traceback__, None, None )
+							if not isinstance( exc, MLException ):
+								traceback.print_tb( exc.__traceback__, None, None )
 							sys.stderr.write( "Entry \"{}\" excluded.\n".format( f ) )
 							return False					# Exclude, if exception occurred.
 					files	= [ f for f in files if checkSnippet( f ) ]
@@ -608,11 +636,11 @@ makeList.py -a -o="" -d=%GFX% -e=".sld,.lst,.m3u,.m3u8" -x=_Playlisten_ --vv -v 
 ###########################################################################################################################
 Print table of movies with file size and used codec. This examples shows how to import an external class
 used for filtering and outputting.
-makeList.py -d=%GFX% -t=movies --initSnippets="import videoInfo;wi=videoInfo.VideoChecker(makeList,'{0:<90}\t{3:>15_}\t{4}')" --filterSnippet="wi.filter(curDir,filePath)" --os=outputEntry=wi.output(filePath) -o="-"
+makeList.py -d=%GFX% -t=movies --initSnippet="import videoInfo;wi=videoInfo.VideoChecker(makeList,'{0:<90}\t{3:>15_}\t{4}')" --filterSnippet="wi.filter(curDir,filePath)" --os=outputEntry=wi.output(filePath) -o="-"
 
 ###########################################################################################################################
 Same as before but size if printed in GB with 2 decimal places.
-makeList.py -d=%GFX% -t=movies --initSnippets="import videoInfo;wi=videoInfo.VideoChecker(makeList,'{0:<90}\t{3:>15_.2f}\t{4}',1/1024/1024))" --filterSnippet="wi.filter(curDir,filePath)" --os=outputEntry=wi.output(filePath) -o="-"
+makeList.py -d=%GFX% -t=movies --initSnippet="import videoInfo;wi=videoInfo.VideoChecker(makeList,'{0:<90}\t{3:>15_.2f}\t{4}',1/1024/1024))" --filterSnippet="wi.filter(curDir,filePath)" --os=outputEntry=wi.output(filePath) -o="-"
 
 ###########################################################################################################################
 Copy files defined a list (line-by-line) to another folder including directory structure.
@@ -633,7 +661,7 @@ gInput.add_argument( "-x", "--excludeDirectory", dest = "excludedDirectories", h
 gInput.add_argument( "-e", "--extensions", help = "List of supported extensions as comma-separated string which will be part of the output list. The following place holders will be resolved: {0} comma-separated list of extensions associated with the output type, {1}: default list extension, {2}: default picture extensions, {3}: default movies extensions, {4}: default music extensions. Set to \"\" to add all files. Default: Default extensions of output type", default = None )
 gInput.add_argument( "-i", "--ignore", help = "List of extensions to be ignored while scanning. All other extensions will raise a warning to STDOUT. Set to \"\" to skip this feature. Default: Default ignores of output type", default = None )
 gInput.add_argument( "-N", "--noSubDirs", action = "store_true", help = "Do not scan sub directories." )
-gInput.add_argument( "--is", "--initSnippets", dest = "initSnippets", help = "Python snippet to initialize the snippets and prepare globals for Python snippets. The following globals are provided: os, sys, re, glob, copy, math, shutil, fnmatch, traceback. The following locals are provided: makeList, verbose and verboseVerbose. Default: None", default = None )
+gInput.add_argument( "--is", "--initSnippet", dest = "initSnippet", help = "Python snippet to initialize the snippets and prepare globals for Python snippets. The following globals are provided: os, sys, re, glob, copy, math, shutil, fnmatch, traceback. The following locals are provided: makeList, verbose and verboseVerbose. Default: None", default = None )
 gInput.add_argument( "-I", "--inputEncoding", help = "The encoding to be used in input lists. Default: {}".format( locale.getencoding() ), default = None )
 
 gOutput = parser.add_argument_group( "Output options" )
@@ -678,12 +706,12 @@ else:
 	fmtTemplate		= args.fmtTemplate
 	if fmtTemplate:
 		if fmt:
-			raise Exception( "Specifiy either --fmtTemplate or --fmt!" )
+			raise MLException( "Specify either --fmtTemplate or --fmt!" )
 		fmt			= open( fmtTemplate ).read()
 	makeList	= MakeList( args.listsFolder, args.extensions if args.extensions is not None else None,
 							args.ignore if args.ignore is not None else None, args.excludedDirectories,
 							args.outputMode, args.fmtOnlyEntries, args.fmtAllSubEntries, args.fmtLists,
-							fmt, fmtEntry, args.initSnippets, args.filterSnippet, args.writeEmptyLists,
+							fmt, fmtEntry, args.initSnippet, args.filterSnippet, args.writeEmptyLists,
 							args.outputType, args.dryMode, args.encoding, verbose or verboseVerbose, verboseVerbose )
 	results					= []
 	preventRedundantLists	= True
@@ -695,8 +723,34 @@ else:
 	ignorePythonErrors		= args.ignorePythonErrors
 	absPath					= args.absPath								# Option has no effect on fmt lists
 	collectResults			= output or args.outputSnippet
+	inputDirectories		= args.directories if args.directories is not None else ( "", )
 
-	for directory in args.directories if args.directories is not None else ( "", ):
+	if verboseVerbose:
+		print( "Using the following input settings:" )
+		print( "Input Directories            : \"{}\"".format( "\", \"".join( inputDirectories ) ) )
+		print( "Input Encoding               :", args.inputEncoding )
+		print( "Init Snippet                 :", args.initSnippet )
+		print( "Ignore Python Errors         :", ignorePythonErrors )
+		print( "Collect Results              :", collectResults )
+		print( "Absolute Path                :", absPath )
+		print( "Current directory            :", os.getcwd() )
+		print( "Prefix                       :", args.prefix )
+		print( "Verbose                      :", verbose )
+		print( "Scan sub directories         :", not args.noSubDirs )
+		makeList.printInputSettings()
+		print( "Locals in Filter Snippets    : filePath, curDir, utils" )
+		print( "Locals in Output Snippets    : filePath, curDir, dryMode, utils, skipEntry, [outputEntry]" )
+
+		print( "\nUsing the following output settings:" )
+		print( "Output mode                  :", args.outputMode )
+		print( "Output Snippet               :", args.outputSnippet )
+		print( "Prevent Redundant Lists      :", preventRedundantLists )
+		print( "Output                       :", output )
+		makeList.printOutputSettings()
+
+		print( "" )
+
+	for directory in inputDirectories:
 		if directory == "" or os.path.isdir( directory ):
 			if collectResults:
 				subResults = makeList.startScanning(	args.prefix, directory, not args.noSubDirs,
@@ -740,7 +794,8 @@ else:
 					except Exception as exc:
 						if not ignorePythonErrors:
 							raise
-						traceback.print_tb( exc.__traceback__, None, None )
+						if not isinstance( exc, MLException ):
+							traceback.print_tb( exc.__traceback__, None, None )
 						sys.stderr.write( "Entry \"{}\" ignored. Reason: {}\n".format( f, exc ) )
 				results	= outputEntries
 			except Exception as exc:
