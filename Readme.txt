@@ -1,8 +1,9 @@
 
 										Make Lists
 
-Dieses Skript kann auf Basis von Verzeichnisscans und regulären Ausdrücken machen und
-für Abspielprogramme und Slideshows abspeichern.
+Dieses Skript kann auf Basis von Verzeichnisscans und regulären Ausdrücken
+Listen erzeugen und für Abspielprogramme (WinAmp, XNView) und Slideshows
+abspeichern.
 
 Voraussetzungen: Python 3.11+
 
