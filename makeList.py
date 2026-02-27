@@ -161,9 +161,9 @@ class Utils:
 class MakeList:
 
 	#######################################################################################################################
-	def __init__( self, listsFolder, extensions, ignore, excludedDirectories, outputMode, fmtOnlyEntries, fmtAllSubEntries,
-				  fmtLists, fmt, fmtEntry, initSnippet, snippet, writeEmptyLists, outputType, dryMode, outputEncoding,
-				  verbose, verboseVerbose ):
+	def __init__( self, listsFolder, extensions, ignore, excludedDirectories, outputMode, ignoreScanErrors,
+				  fmtOnlyEntries, fmtAllSubEntries, fmtLists, fmt, fmtEntry, initSnippet, snippet,
+				  writeEmptyLists, outputType, dryMode, outputEncoding, verbose, verboseVerbose ):
 		if listsFolder is None and fmtLists:
 			raise MLException( "If option /fmtLists/ is specified, you need to specify a lists folder!" )
 		self.__listsFolder			= os.path.abspath( os.path.normpath( listsFolder ) ) if listsFolder else None
@@ -172,6 +172,7 @@ class MakeList:
 		self.__dryMode				= dryMode
 		self.__verbose				= verbose
 		self.__verboseVerbose		= verboseVerbose
+		self.__ignoreScanErrors		= ignoreScanErrors
 		self.__writeEmptyLists		= writeEmptyLists		# True: Do not write empty lists, just remove existing lists
 		self.__excludedDirectories	= excludedDirectories	# folders within /listsFolder/ to be excluded
 		self.__globals				= self.__initGlobals( initSnippet )		# Globals for snippets
@@ -420,7 +421,13 @@ class MakeList:
 		if not excludedDirectories or not dReal in excludedDirectories:
 			if self.__verbose:
 				print( "Scanning folder \"{}\".".format( dReal ) )
-			allItems	= [ _ for _ in sorted( os.listdir( dReal ), key = humanSortIgnoreKey ) ]
+			try:
+				allItems	= [ _ for _ in sorted( os.listdir( dReal ), key = humanSortIgnoreKey ) ]
+			except Exception as e:
+				if not self.__ignoreScanErrors:
+					raise
+				sys.stderr.write( "Cannot scan directory \"{}\". Reason: {}\n".format( dReal, e ) )
+				allItems	= []
 			subDirs		= [ _ for _ in allItems if os.path.isdir( os.path.join( dReal, _ ) ) ]
 			files		= [ _ for _ in allItems if _ not in subDirs and ( _ in extensions or os.path.splitext(_)[ 1 ].lower() in extensions and self.__warnExtension( d, _ ) ) ]		\
 							if extensions != None else [ _ for _ in allItems if _ not in subDirs and self.__warnExtension( d, _ ) ]
@@ -640,7 +647,7 @@ makeList.py -d=%GFX% -t=movies --initSnippet="import videoInfo;wi=videoInfo.Vide
 
 ###########################################################################################################################
 Same as before but size if printed in GB with 2 decimal places.
-makeList.py -d=%GFX% -t=movies --initSnippet="import videoInfo;wi=videoInfo.VideoChecker(makeList,'{0:<90}\t{3:>15_.2f}\t{4}',1/1024/1024))" --filterSnippet="wi.filter(curDir,filePath)" --os=outputEntry=wi.output(filePath) -o="-"
+makeList.py -d=%GFX% -t=movies --initSnippet="import videoInfo;wi=videoInfo.VideoChecker(makeList,'{0:<90}\t{3:>15_.2f}\t{4}',1/1024/1024)" --filterSnippet="wi.filter(curDir,filePath)" --os=outputEntry=wi.output(filePath) -o="-"
 
 ###########################################################################################################################
 Copy files defined a list (line-by-line) to another folder including directory structure.
@@ -663,6 +670,7 @@ gInput.add_argument( "-i", "--ignore", help = "List of extensions to be ignored 
 gInput.add_argument( "-N", "--noSubDirs", action = "store_true", help = "Do not scan sub directories." )
 gInput.add_argument( "--is", "--initSnippet", dest = "initSnippet", help = "Python snippet to initialize the snippets and prepare globals for Python snippets. The following globals are provided: os, sys, re, glob, copy, math, shutil, fnmatch, traceback. The following locals are provided: makeList, verbose and verboseVerbose. Default: None", default = None )
 gInput.add_argument( "-I", "--inputEncoding", help = "The encoding to be used in input lists. Default: {}".format( locale.getencoding() ), default = None )
+gInput.add_argument( "--ie", "--ignoreScanErrors", dest = "ignoreScanErrors", action = "store_true", help = "Ignore errors while scanning. Default: False.", default = False )
 
 gOutput = parser.add_argument_group( "Output options" )
 gOutput.add_argument( "-t", "--type", dest = "outputType", help = "Type of output lists. Valid options are: fileList, pictures, movies, music, media, m3u, m3uExt. Default: None", default = None )
@@ -710,8 +718,9 @@ else:
 		fmt			= open( fmtTemplate ).read()
 	makeList	= MakeList( args.listsFolder, args.extensions if args.extensions is not None else None,
 							args.ignore if args.ignore is not None else None, args.excludedDirectories,
-							args.outputMode, args.fmtOnlyEntries, args.fmtAllSubEntries, args.fmtLists,
-							fmt, fmtEntry, args.initSnippet, args.filterSnippet, args.writeEmptyLists,
+							args.outputMode, args.ignoreScanErrors,
+							args.fmtOnlyEntries, args.fmtAllSubEntries, args.fmtLists, fmt, fmtEntry,
+							args.initSnippet, args.filterSnippet, args.writeEmptyLists,
 							args.outputType, args.dryMode, args.encoding, verbose or verboseVerbose, verboseVerbose )
 	results					= []
 	preventRedundantLists	= True
