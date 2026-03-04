@@ -118,7 +118,7 @@ class Utils:
 				print( "Moving \"{}\" to \"{}\".".format( srcFile, destFile ) )
 			try:
 				dirPath	= os.path.dirname( destFile )
-				if not os.path.isdir( dirPath ):
+				if dirPath and not os.path.isdir( dirPath ):
 					os.makedirs( dirPath )
 				if os.path.isfile( destFile ):
 					if overwrite:
@@ -131,6 +131,35 @@ class Utils:
 					raise
 				else:
 					sys.stderr.write( "Move Error: {}\n".format( e ) )
+
+#######################################################################################################################
+	def covertCaseOfFile( self, srcFile, convertBaseName = None, convertExtension = None, skipErrors = False ):
+		# None:		No change
+		# False:	lowerCase
+		# True:		upperCase
+		srcDir		= os.path.dirname( srcFile )
+		srcName		= os.path.basename( srcFile )
+		bName, ext	= os.path.splitext( srcName )
+		if convertBaseName is not None:
+			bName	= bName.upper() if convertBaseName else bName.lower()
+		if convertExtension is not None:
+			ext		= ext.upper() if convertExtension else ext.lower()
+
+		destFile	= os.path.join( srcDir, bName + ext ) if srcDir  else ( bName + ext )
+		if self.__dryMode or srcFile == destFile:
+			if self.__verbose:
+				print( "Skipped renaming \"{}\" to \"{}\".".format( srcFile, destFile ) )
+		else:
+			if self.__verbose:
+				print( "Renaming \"{}\" to \"{}\".".format( srcFile, destFile ) )
+			try:
+				shutil.move( srcFile, srcFile + ".tmp" )
+				shutil.move( srcFile + ".tmp", destFile )
+			except:
+				if not skipErrors:
+					raise
+				else:
+					sys.stderr.write( "Rename Error: {}\n".format( e ) )
 
 	#######################################################################################################################
 	def removeFile( self, srcFile, skipErrors = False, removeEmptyDirs = True ):
@@ -589,7 +618,7 @@ path of each file to STDOUT
 Usage: makeList.py -t=pictures -o="-"
 
 ###########################################################################################################################
-Scan specified folder "e:\music" and its sub folders. Write an m3u list to any
+Scan specified folder "e:\music" and its sub folders. Write an ".m3u" list to any
 folder and to the "__lists__" folder.
 Usage: makeList.py -d=e:\music -l=e:\music\_lists_ -t=m3u
 
@@ -619,6 +648,11 @@ makeList.py -e=.mp3,.ogg -d="e:\music\Jazz" --filterSnippet="fnmatch.fnmatch( fi
 Copy all media files (pictures,music,movies) located at %SRC% including applicable folder structure
 to %DEST%. Consider to set utils.copyFile(skipError=True)
 makeList.py -d="%SRC%" -t=media --os="utils.copyFile(r'%SRC%\\'+filePath,r'%DEST%\\'+filePath)" -v
+
+###########################################################################################################################
+Convert base name and/or extensions of file names to upper (True or 1) or lower case
+(False or 0). A "None" indicates that nothing is being changed.
+makeList.py -d="%SRC%" --os="utils.covertCaseOfFile( filePath, 0, 0 )" -v
 
 ###########################################################################################################################
 Move all media files (pictures,music,movies) located at %SRC% into one(!) %DEST% folder. Consider

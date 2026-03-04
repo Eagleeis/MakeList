@@ -35,6 +35,12 @@ class ApplePictureTools:
 		self.__printExcluded	= printExcluded
 
 	#######################################################################################################################
+	# Check, if an original file has a post-processed follower. If yes, move the original, e.g. if the format
+	# was changed or the post-processed picture is a portait.
+	# Img_0625.jpg and IMG_E0625.JPG (Portrait)
+	# Img_0626.png and IMG_E0626.JPG (Screenshot)
+	#		\			\ final cropped or adjusted picture
+	#		 \ obsolete original -> return True to be sorted out
 	def checkIPhoneAdaptedPicture( self, srcDir, srcFile ):
 		bName, ext	= os.path.splitext( srcFile )
 		try:
@@ -42,10 +48,11 @@ class ApplePictureTools:
 		except:
 			return None
 
-		for b in ( True, False ):
-			for e in ( True, False ):
-				testFileName	= "{}_E{}{}".format( ( prefix.upper() if b else prefix ), suffix, ext.upper() if e else ext )
-				return os.path.isfile( testFileName )
+		for b in ( True, False ):				# prefix upper case or lower case
+			for e in ( True, False ):			# extension upper case or lower case
+				testFileName	= "{}_E{}".format( ( prefix.upper() if b else prefix ), suffix )
+				if os.path.isfile( testFileName + ( ".JPG" if e else ".jpg" ) ):
+					return True
 		return None
 
 	#######################################################################################################################

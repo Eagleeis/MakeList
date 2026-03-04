@@ -30,7 +30,10 @@ echo.
 ::echo Note: Inverse Selection activated.
 
 IF NOT EXIST "%DESTDIR%" (
-	:: Call specific script to move Apple pics
+	echo Convert all file names to lower case
+	%PYTHON_HOME%\python.exe "%MAKELIST%" -a -v --os="utils.covertCaseOfFile( filePath, 0, 0 )"
+	echo.
+	echo Call specific script to move "original" Apple pics to folder: %DESTDIR%
 	%PYTHON_HOME%\python.exe "%MAKELIST%" -a -d=%SRCDIR% --is="import toolsPictures;tp=toolsPictures.ApplePictureTools(makeList)" --filterSnippet="tp.checkIPhonePicture(curDir,filePath,inverseSelection=True)" --os="utils.moveFile(filePath,os.path.join(r'%DESTDIR%', os.path.basename(filePath)),overwrite=False)" --ip -v --noSubDirs --fmtAllSubEntries=""
 ) ELSE (
 	echo ERROR! Destination directory "%DESTDIR%" already exists. Script already executed?
