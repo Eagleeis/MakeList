@@ -1,5 +1,6 @@
 
-										Make Lists
+								Make Lists
+							------------------
 
 Dieses Skript kann auf Basis von Verzeichnisscans und regulären Ausdrücken
 Listen erzeugen und für Abspielprogramme (WinAmp, XNView) und Slideshows
