@@ -1,15 +1,14 @@
 
-										Make Lists
+							GIT-Repository: MakeLists
 
-Dieses Skript kann auf Basis von Verzeichnisscans und regulären Ausdrücken
-Listen erzeugen und für Abspielprogramme (WinAmp, XNView) und Slideshows
-abspeichern.
+This repository contains a lot of branches with nice tools. The following
+tools are supported:
 
-Voraussetzungen: Python 3.11+
-
-c:\Tools\Python\3.11.3\python.exe makeList.py -h
-
-
-See also $GFX/_lists/Readme.txt
-
-
+0001_MakeList		Great script to scan a folder structure for anything
+					and create file lists and lists based on regular
+					expressions.
+					See: C:\Tools\MakeList
+					
+0002_SearchList		Script to search for regular expressions in line-based
+					scripts.
+					See: C:\Tools\Searchlists
