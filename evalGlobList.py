@@ -33,7 +33,8 @@ def humanSortIgnoreKey( s ):
 class EvalGlobList:
 
 	#######################################################################################################################
-	def __init__( self, refListsDefs, outputEncoding, dryMode, verbose ):
+	def __init__( self, refListsDefs, inputEncoding, outputEncoding, dryMode, verbose ):
+		self.__inputEncoding	= inputEncoding
 		self.__outputEncoding	= outputEncoding
 		self.__dryMode			= dryMode
 		self.__writeEmptyLists	= False
@@ -86,7 +87,7 @@ class EvalGlobList:
 			if os.path.exists:
 				for listFile in ( inputPath, ) if os.path.isfile( inputPath ) else [ _ for _ in glob.glob( inputPath ) if os.path.isfile( _ ) ]:
 					if self.__verbose:
-						print( listFile )
+						print( "Reading list file \"{}\".".format( listFile ) )
 					finalLine			= returnUnchanged
 					if listFile.endswith( ".m3u" ) or listFile.endswith( ".m3u8" ):
 						checkQuoted		= False
@@ -98,7 +99,7 @@ class EvalGlobList:
 					else:
 						checkQuoted		= False
 						checkOptions	= True
-					with open( listFile ) as fh:
+					with open( listFile, encoding = self.__inputEncoding ) as fh:
 						results.extend( [ ( finalLine( _ ), listFile, lNum ) for lNum, _ in enumerate( fh.read().split( "\n" ) ) if not not _.strip() and checkComment( _, checkQuoted, checkOptions ) ] )
 
 			else:
@@ -265,7 +266,7 @@ gInput = parser.add_argument_group( "Input options" )
 gInput.add_argument( "-g", "--globList", dest = "globLists", help = "File or directory containing the list of regular expressions (type fnmatch inside) to find matches. Glob regular expression can be used to select the definition files. Default: \"\"", action = "append", default = [] )
 gInput.add_argument( "-r", "--refLists", dest = "refLists", help = "File or directory containing the lists to be checked against the inputs. Python regular expressions (fnmatch) are supported. Default: \"\"", action = "append", default = [] )
 gInput.add_argument( "-p", "--processSeparately", action = "store_true", help = "Process input lists separately. Default: Write matchings to one output file." )
-
+gInput.add_argument( "-I", "--inputEncoding", help = "The encoding to be used in input lists. Default: {}".format( locale.getencoding() ), default = None )
 
 gEval = parser.add_argument_group( "Evaluation options" )
 gEval.add_argument( "-s", "--snippet", help = "Python snippet processed for any entry after processing regular expression. Needs to return the final output of the entry. If None is returned, the entry shall be skipped. The following globals will be available: sys, ast, os, re, copy, math, cmath, errno, time, glob, fnmatch, collections. Further a global dictionary \"user\" will be provided to store data from one call to another. The following locals will be provided: num, line, len. Default: None", default = None )
@@ -291,7 +292,7 @@ else:
 	fmtOutput		= args.fmtOutput
 	fmtTemplate		= args.fmtTemplate
 	output			= args.output
-	evalGlobList	= EvalGlobList( args.refLists, args.outputEncoding, args.dryMode, verbose )
+	evalGlobList	= EvalGlobList( args.refLists, args.inputEncoding, args.outputEncoding, args.dryMode, verbose )
 	if fmtTemplate:
 		if fmt:
 			raise Exception( "Specifiy either --fmtTemplate or --fmt!" )

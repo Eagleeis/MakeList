@@ -28,7 +28,7 @@ extensionsMusic			= ".wma,.mpa,.wav,.mp3,.m4a,.ogg,.flac,.au"
 ignoreExtensionsMusic	=".txt,.jpg,.bmp,.gif,.png,.tif,.tiff,.ini,.m3u,.lst,.cue,.nfo,.sfv,.pdf,.doc,.rtf,.xls,.xlsx,.html,.htm,.url,.pls,.ape,.apl"
 # Default extensions which will be party of m3u lists
 extensionsPictures		= ".jpg,.jpeg,.bmp,.gif,.png,.tif,.tiff,.dvi"
-extensionsMovies		= ".mov,.mp4,.avi,.mpg,.mpeg,.mkv,.wmv,.webm,.mts,.vob"
+extensionsMovies		= ".mov,.mp4,.avi,.mpg,.mpeg,.mkv,.wmv,.webm,.mts,.vob,.ts,.m2ts"
 
 
 ###########################################################################################################################
@@ -377,7 +377,13 @@ class MakeList:
 	def __getOutput( self, lines ):
 		fmtEntry	= self.__fmtEntry
 		if fmtEntry is not None:
-			oStr	= "\n".join( [ fmtEntry.format( _ ) for _ in lines ] )
+			def __formatNone( _ ):
+				return None
+			def __formatAbsPath( _ ):
+				return os.path.abspath( _ )
+			fmtArg1	= __formatNone if fmtEntry == "{0}" else __formatAbsPath
+
+			oStr	= "\n".join( [ fmtEntry.format( _, fmtArg1( _ ) ) for _ in lines ] )
 		else:
 			oStr	= "\n".join( lines )
 
@@ -464,9 +470,10 @@ class MakeList:
 
 			# Write list of folder contents without contents of sub folders
 			if self.__fmtOnlyEntries:
-				defListPath	= os.path.join( dReal, os.path.basename( d if dReal != "." else os.getcwd() ) )
+				listName	= os.path.basename( d if dReal != "." else os.getcwd() )
+				defListPath	= os.path.join( dReal, listName )
 				listPath	= self.__fmtOnlyEntries.format( defListPath, d, dReal, self.__listExtension, prefix,
-															os.sep, os.pathsep, self.__listsFolder )
+															os.sep, os.pathsep, self.__listsFolder, listName )
 				self.__writeList( listPath, files )
 
 			# Scan and add contents of sub folders. Count directories with sub contents to prevent writing redundant
@@ -482,9 +489,10 @@ class MakeList:
 
 			# Write list of contents (including contents of sub directories) directly into current folder
 			if self.__fmtAllSubEntries:
-				defListPath	= os.path.join( dReal, os.path.basename( d if dReal != "." else os.getcwd() ) )
+				listName	= os.path.basename( d if dReal != "." else os.getcwd() )
+				defListPath	= os.path.join( dReal, listName )
 				listPath	= self.__fmtAllSubEntries.format( defListPath, d, dReal, self.__listExtension, prefix,
-															  os.sep, os.pathsep, self.__listsFolder )
+															  os.sep, os.pathsep, self.__listsFolder, listName )
 				self.__writeList( listPath, files )
 
 			# Write list of entries (including contents of sub directories) into a separate folder holding all lists.
@@ -495,7 +503,7 @@ class MakeList:
 					listName= d.replace( "\\", "_" ).replace( "/", "_" ).replace( ":", "_" )
 				defListPath	= os.path.join( self.__listsFolder, listName )
 				listPath	= self.__fmtLists.format( defListPath, d, dReal, self.__listExtension, prefix,
-													  os.sep, os.pathsep, self.__listsFolder )
+													  os.sep, os.pathsep, self.__listsFolder, listName )
 				if preventRedundantLists and countDirsWithContents <= 1 and not numFiles:#len( subDirs ) == 1 or len( subDirs ) > 1 and :# or len( files ) == numFiles + 1:
 					if self.__verbose:
 						print( "Writing redundant list \"{}\" skipped!".format( listPath ) )
@@ -719,7 +727,7 @@ gOutput.add_argument( "-o", "--output", help = "Output final list to specified f
 gOutput.add_argument( "-a", "--absPath", dest = "absPath", action = "store_true", help = "Create absolute path of entries in final outputs. Option has no effect to fmt lists. Default: False.", default = False )
 gOutput.add_argument( "--os", "--outputSnippet", dest = "outputSnippet", help = "Python snippet (type: exec) executed for any final entry of output list in any case and independently on other options for any final line. The following globals are defined: os, re, sys, glob, copy, math, shutil, fnmatch, traceback. The following locals are defined: filePath, curDir, dryMode, utils. If locals[\"outputEntry\"] is defined after executing the snippet, it shall be written to the output instead \"filePath\". If locals[\"skipEntry\"] is True, the filePath shall be skipped. Default: Undefined.", default = None )
 gOutput.add_argument( "--ip", "--ignorePythonErrors", dest = "ignorePythonErrors", action = "store_true", help = "Ignore exceptions in executed Python snippets. Default: False.", default = False )
-	
+
 gFmtList = parser.add_argument_group( "Output Lists",
 """This script can create lists in folders and sub folders, if the following options are specified. There are defaults depending on the output types. The following format strings can be used to change the file paths of the lists to be written. The following place holders shall be supported: {0}: default path of specific list without extension (see {3}),
 {1}: original specified name of scanned directory,
@@ -729,6 +737,7 @@ gFmtList = parser.add_argument_group( "Output Lists",
 {5}: os.sep,
 {6}: os.pathsep,
 {7}: lists folder as defined while construction the instance,
+{8}: prepared file name of list,
 """ )
 gFmtList.add_argument( "--fmtOnlyEntries", help = "Format string of file path of a list written after scanning a directory (without contents of sub directories). Set to \"\" to skip writing such lists. Default: Default format specifier of output type", default = None )
 gFmtList.add_argument( "--fmtAllSubEntries", help = "Format string of file path of a list written after scanning a directory and its sub directories. Set to \"\" to skip writing such lists. Default: Default format specifier of output type", default = None )
@@ -828,6 +837,8 @@ else:
 					try:
 						if verboseVerbose:
 							print( "Executing python snippet for file \"{}\".".format( f ) )
+							print( "Snippet: {}".format( args.outputSnippet ) )
+							print( "Locals:  {}".format( l ) )
 						exec( outputSnippet, g, l )
 						if "outputEntry" in l:
 							outputEntries[ num - skippedEntries ] = l[ "outputEntry" ]
